@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="ru" x-data="storyGame()" x-cloak>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story Cubes AI</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Brain.js -->
+    <script src="https://unpkg.com/brain.js@2.0.0-beta.2/dist/brain-browser.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        
+        /* Общие CSS-переменные */
+        :root {
+            --bg: #0f1724;
+            --surface: #111827;
+            --muted: #6b7280;
+            --accent: #10b981;
+            --accent-2: #06b6d4;
+            --danger: #ef4444;
+            --glass: rgba(255,255,255,0.04);
+            --text: #e6eef8;
+            --radius: 10px;
+            --shadow-sm: 0 1px 2px rgba(2,6,23,0.6);
+            --shadow-md: 0 6px 18px rgba(2,6,23,0.6);
+            --gap: 12px;
+            --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+            --ui-scale: 1;
+            --transition-fast: 160ms;
+            --transition-medium: 280ms;
+            --transition-ease: cubic-bezier(.2,.9,.3,1);
+        }
+
+        /* Базовые стили */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .game {
+            font-family: var(--font-sans);
+            color: var(--text);
+            background: linear-gradient(180deg, var(--bg), #081024 60%);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            transform: translateZ(0);
+            min-height: 100vh;
+            transition: background var(--transition-medium);
+        }
+
+        /* Контейнер */
+        .container {
+            padding: calc(var(--gap) * 1.5);
+            display: grid;
+            gap: var(--gap);
+            grid-template-columns: 1fr 320px;
+            max-width: 1400px;
+            margin: 0 auto;
+            min-height: 100vh;
+        }
+
+        /* Основной контент */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap);
+        }
+
+        /* HUD */
+        .hud {
+            position: sticky;
+            top: calc(var(--gap) * 1.5);
+            z-index: 50;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            backdrop-filter: blur(6px);
+            background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+            padding: 8px 16px;
+            border-radius: 999px;
+            box-shadow: var(--shadow-sm);
+            transform: translateZ(0);
+            margin-bottom: var(--gap);
+            border: 1px solid var(--glass);
+        }
+
+        .hud-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .life {
+            --size: 40px;
+            width: var(--size);
+            height: var(--size);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: linear-gradient(180deg, var(--accent), rgba(16,185,129,0.9));
+            box-shadow: 0 4px 10px rgba(16,185,129,0.12);
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: #032020;
+        }
+
+        .score {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--text);
+            background: var(--glass);
+            padding: 6px 12px;
+            border-radius: var(--radius);
+        }
+
+        /* Игровое поле */
+        .board {
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+            border-radius: calc(var(--radius) * 1.25);
+            box-shadow: var(--shadow-md);
+            overflow: hidden;
+            position: relative;
+            padding: 20px;
+            border: 1px solid var(--glass);
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .board__grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(3, 1fr);
+            margin-bottom: 24px;
+        }
+
+        @media (min-width: 768px) {
+            .board__grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        /* Кубики */
+        .die {
+            aspect-ratio: 1;
+            background: linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+            border-radius: calc(var(--radius) * 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all var(--transition-fast) var(--transition-ease);
+            position: relative;
+            border: 1px solid var(--glass);
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .die:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+            border-color: var(--accent);
+        }
+
+        .die--rolling {
+            animation: roll 0.8s var(--transition-ease);
+        }
+
+        @keyframes roll {
+            0% { transform: rotate(0deg) scale(1); }
+            25% { transform: rotate(90deg) scale(0.9); }
+            50% { transform: rotate(180deg) scale(1.1); }
+            75% { transform: rotate(270deg) scale(0.95); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+
+        .die__face {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 8px;
+        }
+
+        .die__icon {
+            font-size: 1.5rem;
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+
+        .die__symbol {
+            font-size: 0.7rem;
+            text-align: center;
+            line-height: 1.2;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .die__number {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: var(--accent);
+            color: #032020;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        /* Кнопки */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast) var(--transition-ease);
+            user-select: none;
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+            border: 1px solid rgba(255,255,255,0.04);
+            color: var(--text);
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn:active {
+            transform: translateY(1px) scale(0.995);
+        }
+
+        .btn--primary {
+            background: linear-gradient(180deg, var(--accent), var(--accent-2));
+            box-shadow: 0 8px 20px rgba(16,185,129,0.14);
+            color: #032020;
+            border: none;
+        }
+
+        .btn--icon {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border-radius: 50%;
+            background: var(--glass);
+        }
+
+        .btn--danger {
+            background: linear-gradient(180deg, var(--danger), rgba(239,68,68,0.8));
+            color: white;
+        }
+
+        .btn[disabled] {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .board__actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* Редактор */
+        .editor-section {
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+            border-radius: calc(var(--radius) * 1.25);
+            box-shadow: var(--shadow-md);
+            padding: 20px;
+            border: 1px solid var(--glass);
+        }
+
+        .editor {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .editor__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .editor__title {
+            background: var(--glass);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius);
+            padding: 8px 12px;
+            color: var(--text);
+            font-size: 1.1rem;
+            font-weight: 600;
+            flex: 1;
+            min-width: 200px;
+            font-family: var(--font-sans);
+        }
+
+        .editor__title:focus {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .editor__stats {
+            display: flex;
+            gap: 12px;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        .editor__textarea {
+            background: var(--glass);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius);
+            padding: 16px;
+            color: var(--text);
+            font-size: 1rem;
+            line-height: 1.6;
+            font-family: var(--font-sans);
+            resize: vertical;
+            min-height: 200px;
+            transition: border-color var(--transition-fast);
+        }
+
+        .editor__textarea:focus {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+            border-color: var(--accent);
+        }
+
+        .editor__footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .editor__rating {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .rating-stars {
+            display: flex;
+            gap: 2px;
+        }
+
+        .rating-stars .fa-star {
+            color: var(--muted);
+            cursor: pointer;
+            transition: color var(--transition-fast);
+        }
+
+        .rating-stars .fa-star.filled {
+            color: #fbbf24;
+        }
+
+        .rating-stars .fa-star:hover {
+            color: #fbbf24;
+        }
+
+        /* Боковая панель */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap);
+        }
+
+        .sidebar__section {
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+            border-radius: calc(var(--radius) * 1.25);
+            box-shadow: var(--shadow-md);
+            padding: 20px;
+            border: 1px solid var(--glass);
+        }
+
+        .sidebar__title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* AI Панель */
+        .ai-panel__output {
+            background: var(--glass);
+            border-radius: var(--radius);
+            padding: 12px;
+            margin-bottom: 16px;
+            min-height: 80px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .ai-panel__controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .ai-panel__training {
+            background: rgba(16,185,129,0.1);
+            border-radius: var(--radius);
+            padding: 12px;
+            font-size: 0.85rem;
+            border: 1px solid rgba(16,185,129,0.2);
+        }
+
+        /* Переключатель */
+        .switch {
+            width: 48px;
+            height: 28px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.05);
+            position: relative;
+            padding: 4px;
+            cursor: pointer;
+            transition: background var(--transition-fast);
+        }
+
+        .switch--on {
+            background: var(--accent);
+        }
+
+        .switch__knob {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--surface);
+            transition: transform var(--transition-fast) var(--transition-ease);
+            transform: translateX(0);
+        }
+
+        .switch--on .switch__knob {
+            transform: translateX(20px);
+        }
+
+        /* История */
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .history-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .history-list::-webkit-scrollbar-track {
+            background: var(--glass);
+            border-radius: 2px;
+        }
+
+        .history-list::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 2px;
+        }
+
+        .history-card {
+            background: var(--glass);
+            border-radius: var(--radius);
+            padding: 12px;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            border: 1px solid transparent;
+        }
+
+        .history-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .history-card__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .history-card__header h4 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .history-card__date {
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+
+        .history-card__preview {
+            font-size: 0.85rem;
+            color: var(--muted);
+            line-height: 1.4;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .history-card__symbols {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .symbol-tag {
+            background: rgba(16,185,129,0.1);
+            color: var(--accent);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            border: 1px solid rgba(16,185,129,0.2);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--muted);
+        }
+
+        .empty-state i {
+            font-size: 2rem;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        /* Настройки */
+        .settings-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .setting {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .select {
+            background: var(--glass);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius);
+            padding: 6px 12px;
+            color: var(--text);
+            font-family: var(--font-sans);
+            min-width: 120px;
+        }
+
+        .slider {
+            flex: 1;
+            max-width: 100px;
+            height: 6px;
+            -webkit-appearance: none;
+            background: var(--glass);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+        }
+
+        /* Уведомления */
+        .toast {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+            padding: 12px 16px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            transform: translateY(12px) scale(.98);
+            opacity: 0;
+            transition: all var(--transition-medium);
+            z-index: 100;
+            border: 1px solid var(--glass);
+            backdrop-filter: blur(10px);
+            max-width: 320px;
+        }
+
+        .toast--show {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        /* Модальное окно */
+        .modal {
+            position: fixed;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            z-index: 1000;
+            background: rgba(2,6,23,0.7);
+            backdrop-filter: blur(4px);
+        }
+
+        .modal__sheet {
+            width: min(720px, calc(100% - 32px));
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+            padding: 24px;
+            border-radius: calc(var(--radius) * 1.2);
+            box-shadow: 0 18px 40px rgba(2,6,23,0.6);
+            transform: translateY(0);
+            transition: transform var(--transition-medium) var(--transition-ease), opacity var(--transition-medium) var(--transition-ease);
+            border: 1px solid var(--glass);
+            backdrop-filter: blur(10px);
+        }
+
+        .modal__title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+
+        .modal__content {
+            margin: 20px 0;
+        }
+
+        .modal__actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        /* Прогресс-бар */
+        .progress-bar {
+            height: 6px;
+            background: var(--glass);
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+
+        .progress-bar__fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            border-radius: 3px;
+            transition: width var(--transition-medium);
+        }
+
+        /* Анимации и prefers-reduced-motion */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition: none !important;
+                animation: none !important;
+            }
+        }
+
+        @keyframes pop-in {
+            from { transform: scale(.96); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .modal__sheet, .toast--show {
+            animation: pop-in var(--transition-medium) var(--transition-ease) both;
+        }
+
+        /* Доступность */
+        :focus {
+            outline: 3px solid rgba(16,185,129,0.18);
+            outline-offset: 3px;
+            border-radius: 6px;
+        }
+
+        .btn[aria-disabled="true"] {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .hud, .modal__sheet {
+            color-scheme: dark;
+        }
+
+        /* Адаптивность */
+        @media (max-width: 899px) {
+            .container {
+                grid-template-columns: 1fr;
+                padding: 12px;
+            }
+            
+            .board {
+                aspect-ratio: 4/3;
+            }
+            
+            .hud {
+                top: 8px;
+                left: 8px;
+                gap: 6px;
+            }
+            
+            .board__grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 479px) {
+            :root {
+                --gap: 8px;
+                --radius: 8px;
+                --ui-scale: 0.95;
+            }
+            
+            .hud {
+                padding: 6px;
+            }
+            
+            .btn {
+                padding: 6px 10px;
+                font-size: 0.9rem;
+            }
+            
+            .board__actions {
+                flex-direction: column;
+            }
+            
+            .board__actions .btn {
+                width: 100%;
+            }
+        }
+
+        /* Темы */
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg: #f6f8fb;
+                --surface: #ffffff;
+                --text: #0b1220;
+                --glass: rgba(11,18,32,0.04);
+                --shadow-sm: 0 1px 2px rgba(11,17,28,0.06);
+                --shadow-md: 0 6px 18px rgba(11,17,28,0.1);
+            }
+            
+            .game {
+                background: linear-gradient(180deg, var(--bg), #e8edf5 60%);
+            }
+            
+            .die__symbol {
+                color: var(--text);
+            }
+            
+            .switch {
+                background: rgba(11,18,32,0.08);
+            }
+        }
+
+        /* Темная тема принудительно */
+        .theme-dark {
+            --bg: #0f1724;
+            --surface: #111827;
+            --text: #e6eef8;
+            --glass: rgba(255,255,255,0.04);
+            --shadow-sm: 0 1px 2px rgba(2,6,23,0.6);
+            --shadow-md: 0 6px 18px rgba(2,6,23,0.6);
+        }
+
+        /* Светлая тема принудительно */
+        .theme-light {
+            --bg: #f6f8fb;
+            --surface: #ffffff;
+            --text: #0b1220;
+            --glass: rgba(11,18,32,0.04);
+            --shadow-sm: 0 1px 2px rgba(11,17,28,0.06);
+            --shadow-md: 0 6px 18px rgba(11,17,28,0.1);
+        }
+
+        /* Опциональные палитры */
+        .theme-emerald {
+            --accent: #10b981;
+            --accent-2: #06b6d4;
+            --bg: #071020;
+        }
+
+        .theme-sunset {
+            --accent: #ff7a59;
+            --accent-2: #ffbf69;
+            --bg: #1b0f14;
+        }
+    </style>
+</head>
+<body class="game">
+    <!-- Главный контейнер -->
+    <div class="container">
+        <!-- Левая колонка: игровое поле -->
+        <main class="main-content">
+            <!-- HUD панель -->
+            <div class="hud">
+                <div class="hud-item">
+                    <div class="life" x-text="storyScore"></div>
+                </div>
+                <div class="hud-item">
+                    <span class="score">Очков креативности: <span x-text="creativityScore"></span></span>
+                </div>
+                <div class="hud-item">
+                    <button class="btn btn--icon" @click="toggleTheme" title="Сменить тему">
+                        <i class="fas" :class="theme === 'dark' ? 'fa-sun' : 'fa-moon'"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Игровое поле с кубиками -->
+            <section class="board">
+                <h2 class="section-title">Кубики историй</h2>
+                <div class="board__grid" id="diceGrid">
+                    <template x-for="(die, index) in dice" :key="index">
+                        <div class="die" 
+                             :class="{ 'die--rolling': die.isRolling }"
+                             @click="rollSingleDie(index)"
+                             :title="die.currentSymbol.name">
+                            <div class="die__face">
+                                <i class="die__icon" :class="die.currentSymbol.icon"></i>
+                                <span class="die__symbol" x-text="die.currentSymbol.name"></span>
+                            </div>
+                            <div class="die__number" x-text="index + 1"></div>
+                        </div>
+                    </template>
+                </div>
+                
+                <div class="board__actions">
+                    <button class="btn btn--primary" @click="rollAllDice">
+                        <i class="fas fa-dice"></i> Бросить все кубики
+                    </button>
+                    <button class="btn" @click="generateStoryPrompt" :disabled="isAILoading">
+                        <i class="fas fa-robot"></i> 
+                        <span x-text="isAILoading ? 'ИИ думает...' : 'AI Подсказка'"></span>
+                    </button>
+                    <button class="btn" @click="clearStory">
+                        <i class="fas fa-trash"></i> Очистить
+                    </button>
+                </div>
+            </section>
+
+            <!-- Редактор истории -->
+            <section class="editor-section">
+                <h2 class="section-title">Твоя история</h2>
+                <div class="editor">
+                    <div class="editor__header">
+                        <input type="text" 
+                               class="editor__title" 
+                               placeholder="Название истории..." 
+                               x-model="currentStory.title"
+                               maxlength="50">
+                        <div class="editor__stats">
+                            <span x-text="`Символов: ${currentStory.text.length}`"></span>
+                            <span x-text="`Слов: ${wordCount}`"></span>
+                        </div>
+                    </div>
+                    <textarea class="editor__textarea" 
+                              placeholder="Начни писать историю здесь, используя символы с кубиков как вдохновение..."
+                              x-model="currentStory.text"
+                              @input="updateStoryStats"
+                              rows="8"></textarea>
+                    <div class="editor__footer">
+                        <button class="btn btn--primary" @click="saveStory" :disabled="!currentStory.text.trim()">
+                            <i class="fas fa-save"></i> Сохранить историю
+                        </button>
+                        <div class="editor__rating">
+                            <span>Оценка связности: </span>
+                            <div class="rating-stars">
+                                <template x-for="i in 5" :key="i">
+                                    <i class="fas fa-star" 
+                                       :class="{ 'filled': i <= currentStory.coherenceRating }"
+                                       @click="rateCoherence(i)"></i>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Правая колонка: боковая панель -->
+        <aside class="sidebar">
+            <!-- AI Подсказки -->
+            <section class="sidebar__section ai-panel">
+                <h3 class="sidebar__title">
+                    <i class="fas fa-robot"></i> AI Ассистент
+                </h3>
+                <div class="ai-panel__output" x-html="aiSuggestion"></div>
+                <div class="ai-panel__controls">
+                    <div class="switch" @click="toggleAIAssistant" :class="{ 'switch--on': isAIActive }">
+                        <div class="switch__knob"></div>
+                    </div>
+                    <span>AI Подсказки: <span x-text="isAIActive ? 'Вкл' : 'Выкл'"></span></span>
+                </div>
+                <div class="ai-panel__training" x-show="showTrainingPanel">
+                    <p>Нейросеть обучается на ваших историях для лучших подсказок</p>
+                    <div class="progress-bar">
+                        <div class="progress-bar__fill" :style="`width: ${trainingProgress}%`"></div>
+                    </div>
+                    <span x-text="`Обучение: ${trainingProgress}%`"></span>
+                </div>
+            </section>
+
+            <!-- История сохраненных историй -->
+            <section class="sidebar__section history-panel">
+                <h3 class="sidebar__title">
+                    <i class="fas fa-history"></i> Предыдущие истории
+                </h3>
+                <div class="history-list">
+                    <template x-for="(story, index) in savedStories" :key="story.id">
+                        <div class="history-card" @click="loadStory(story.id)">
+                            <div class="history-card__header">
+                                <h4 x-text="story.title || 'Без названия'"></h4>
+                                <span class="history-card__date" x-text="formatDate(story.date)"></span>
+                            </div>
+                            <div class="history-card__preview" x-text="previewText(story.text)"></div>
+                            <div class="history-card__symbols">
+                                <template x-for="symbol in story.symbols.slice(0, 4)" :key="symbol">
+                                    <span class="symbol-tag" x-text="symbol"></span>
+                                </template>
+                                <span x-show="story.symbols.length > 4" x-text="`+${story.symbols.length - 4}`"></span>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="savedStories.length === 0" class="empty-state">
+                        <i class="fas fa-book-open"></i>
+                        <p>Здесь появятся ваши сохраненные истории</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Настройки -->
+            <section class="sidebar__section settings-panel">
+                <h3 class="sidebar__title">
+                    <i class="fas fa-cog"></i> Настройки
+                </h3>
+                <div class="settings-list">
+                    <div class="setting">
+                        <span>Звуки броска</span>
+                        <div class="switch" @click="toggleSound" :class="{ 'switch--on': soundEnabled }">
+                            <div class="switch__knob"></div>
+                        </div>
+                    </div>
+                    <div class="setting">
+                        <span>Анимации</span>
+                        <div class="switch" @click="toggleAnimations" :class="{ 'switch--on': animationsEnabled }">
+                            <div class="switch__knob"></div>
+                        </div>
+                    </div>
+                    <div class="setting">
+                        <span>Тема</span>
+                        <select class="select" x-model="theme" @change="changeTheme">
+                            <option value="dark">Тёмная</option>
+                            <option value="light">Светлая</option>
+                            <option value="auto">Системная</option>
+                        </select>
+                    </div>
+                    <div class="setting">
+                        <span>Сложность AI</span>
+                        <input type="range" min="1" max="10" x-model="aiDifficulty" class="slider">
+                        <span x-text="aiDifficulty"></span>
+                    </div>
+                </div>
+                <button class="btn btn--danger" @click="clearAllData">
+                    <i class="fas fa-trash-alt"></i> Очистить все данные
+                </button>
+            </section>
+        </aside>
+    </div>
+
+    <!-- Уведомления -->
+    <div class="toast" :class="{ 'toast--show': showToast }" x-show="showToast" @click="showToast = false">
+        <i class="fas" :class="toastIcon"></i>
+        <span x-text="toastMessage"></span>
+    </div>
+
+    <!-- Модальное окно обучения AI -->
+    <div class="modal" x-show="showTrainingModal" @click.self="showTrainingModal = false">
+        <div class="modal__sheet">
+            <h3 class="modal__title">Обучение нейронной сети</h3>
+            <p>Нейросеть Brain.js обучается на ваших историях, чтобы давать более релевантные подсказки.</p>
+            <div class="modal__content">
+                <div class="training-status">
+                    <p>Обработано историй: <span x-text="trainedStoriesCount"></span></p>
+                    <div class="progress-bar">
+                        <div class="progress-bar__fill" :style="`width: ${trainingProgress}%`"></div>
+                    </div>
+                </div>
+                <div class="modal__actions">
+                    <button class="btn" @click="showTrainingModal = false">Закрыть</button>
+                    <button class="btn btn--primary" @click="trainNeuralNetwork" :disabled="isTraining">
+                        <span x-text="isTraining ? 'Обучается...' : 'Обучить сейчас'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('storyGame', () => ({
+        // Состояние приложения
+        theme: 'dark',
+        soundEnabled: true,
+        animationsEnabled: true,
+        isAIActive: true,
+        isAILoading: false,
+        isTraining: false,
+        showTrainingPanel: false,
+        showTrainingModal: false,
+        showToast: false,
+        toastMessage: '',
+        toastIcon: 'fa-info-circle',
+        
+        // Данные кубиков
+        dice: [],
+        symbols: [
+            // Символы из Rory's Story Cubes (54 символа)
+            { name: 'Луна', icon: 'fas fa-moon', category: 'природа' },
+            { name: 'Книга', icon: 'fas fa-book', category: 'объект' },
+            { name: 'Мост', icon: 'fas fa-bridge', category: 'место' },
+            { name: 'Пчела', icon: 'fas fa-bee', category: 'животное' },
+            { name: 'Фонтан', icon: 'fas fa-fountain', category: 'объект' },
+            { name: 'Палатка', icon: 'fas fa-campground', category: 'место' },
+            { name: 'Замок', icon: 'fas fa-chess-rook', category: 'место' },
+            { name: 'Глаз', icon: 'fas fa-eye', category: 'символ' },
+            { name: 'Пирамида', icon: 'fas fa-mountain', category: 'место' },
+            { name: 'Письмо', icon: 'fas fa-envelope', category: 'объект' },
+            { name: 'Дерево', icon: 'fas fa-tree', category: 'природа' },
+            { name: 'Небоскреб', icon: 'fas fa-building', category: 'место' },
+            { name: 'Яблоко', icon: 'fas fa-apple-alt', category: 'еда' },
+            { name: 'Земля', icon: 'fas fa-globe-americas', category: 'природа' },
+            { name: 'Черепаха', icon: 'fas fa-turtle', category: 'животное' },
+            { name: 'Жук', icon: 'fas fa-bug', category: 'животное' },
+            { name: 'Дом', icon: 'fas fa-home', category: 'место' },
+            { name: 'Рыба', icon: 'fas fa-fish', category: 'животное' },
+            { name: 'Цветок', icon: 'fas fa-flower', category: 'природа' },
+            { name: 'Парашют', icon: 'fas fa-parachute-box', category: 'объект' },
+            { name: 'Ключ', icon: 'fas fa-key', category: 'объект' },
+            { name: 'Волшебная палочка', icon: 'fas fa-magic', category: 'символ' },
+            { name: 'Грустное лицо', icon: 'fas fa-frown', category: 'эмоция' },
+            { name: 'Вопросительный знак', icon: 'fas fa-question', category: 'символ' },
+            { name: 'Падающая звезда', icon: 'fas fa-star', category: 'природа' },
+            { name: 'След ноги', icon: 'fas fa-shoe-prints', category: 'символ' },
+            { name: 'Овца', icon: 'fas fa-sheep', category: 'животное' },
+            { name: 'Огонь', icon: 'fas fa-fire', category: 'стихия' },
+            { name: 'Магнит', icon: 'fas fa-magnet', category: 'объект' },
+            { name: 'Молния', icon: 'fas fa-bolt', category: 'стихия' },
+            { name: 'Трость', icon: 'fas fa-blind', category: 'объект' },
+            { name: 'Телефон', icon: 'fas fa-mobile-alt', category: 'объект' },
+            { name: 'Инопланетянин', icon: 'fas fa-user-astronaut', category: 'существо' },
+            { name: 'Весы', icon: 'fas fa-balance-scale', category: 'символ' },
+            { name: 'Стрелка', icon: 'fas fa-arrow-right', category: 'символ' },
+            { name: 'Радуга', icon: 'fas fa-rainbow', category: 'природа' },
+            { name: 'Счастливое лицо', icon: 'fas fa-smile', category: 'эмоция' },
+            { name: 'Фонарик', icon: 'fas fa-flashlight', category: 'объект' },
+            { name: 'Самолет', icon: 'fas fa-plane', category: 'транспорт' },
+            { name: 'Рука', icon: 'fas fa-hand-paper', category: 'тело' },
+            { name: 'Монстр', icon: 'fas fa-ghost', category: 'существо' },
+            { name: 'Игральная кость', icon: 'fas fa-dice', category: 'объект' },
+            { name: 'Увеличительное стекло', icon: 'fas fa-search', category: 'объект' },
+            { name: 'Лампочка', icon: 'fas fa-lightbulb', category: 'объект' },
+            { name: 'Часы', icon: 'fas fa-clock', category: 'объект' },
+            { name: 'Спящий', icon: 'fas fa-bed', category: 'состояние' },
+            { name: 'Облако', icon: 'fas fa-cloud', category: 'природа' },
+            { name: 'Стрела', icon: 'fas fa-bullseye', category: 'объект' },
+            { name: 'Снежинка', icon: 'fas fa-snowflake', category: 'природа' },
+            { name: 'Маски', icon: 'fas fa-theater-masks', category: 'символ' },
+            { name: 'Абак', icon: 'fas fa-calculator', category: 'объект' },
+            { name: 'Река', icon: 'fas fa-water', category: 'природа' },
+            { name: 'Башня', icon: 'fas fa-tower', category: 'место' },
+            { name: 'Фонарь', icon: 'fas fa-lamp', category: 'объект' }
+        ],
+        
+        // Текущая история
+        currentStory: {
+            id: null,
+            title: '',
+            text: '',
+            symbols: [],
+            coherenceRating: 3,
+            date: null
+        },
+        
+        // Сохраненные истории
+        savedStories: [],
+        
+        // AI состояние
+        aiSuggestion: 'Нажмите "Бросить все кубики", затем используйте "AI Подсказка" для помощи в создании истории.',
+        aiDifficulty: 5,
+        neuralNetwork: null,
+        trainingData: [],
+        trainingProgress: 0,
+        trainedStoriesCount: 0,
+        
+        // Очки
+        storyScore: 0,
+        creativityScore: 0,
+        
+        init() {
+            // Инициализация темы
+            this.initTheme();
+            
+            // Инициализация кубиков
+            this.initDice();
+            
+            // Загрузка сохраненных данных
+            this.loadSavedData();
+            
+            // Инициализация нейронной сети
+            this.initNeuralNetwork();
+            
+            // Первый бросок кубиков
+            this.rollAllDice();
+            
+            // Показываем приветственное сообщение
+            this.showToast('Добро пожаловать в Story Cubes AI!', 'fa-magic');
+        },
+        
+        initTheme() {
+            const savedTheme = localStorage.getItem('storyCubesTheme');
+            if (savedTheme) {
+                this.theme = savedTheme;
+            } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+                this.theme = 'light';
+            }
+            this.applyTheme();
+        },
+        
+        applyTheme() {
+            document.body.classList.remove('theme-dark', 'theme-light');
+            if (this.theme !== 'auto') {
+                document.body.classList.add(`theme-${this.theme}`);
+            }
+            localStorage.setItem('storyCubesTheme', this.theme);
+        },
+        
+        initDice() {
+            // Создаем 9 кубиков с 6 случайными символами каждый
+            this.dice = [];
+            const shuffledSymbols = [...this.symbols].sort(() => Math.random() - 0.5);
+            
+            for (let i = 0; i < 9; i++) {
+                const cubeSymbols = shuffledSymbols.slice(i * 6, (i + 1) * 6);
+                this.dice.push({
+                    id: i,
+                    symbols: cubeSymbols,
+                    currentSymbol: cubeSymbols[Math.floor(Math.random() * 6)],
+                    isRolling: false
+                });
+            }
+        },
+        
+        rollAllDice() {
+            this.dice.forEach((die, index) => {
+                this.rollSingleDie(index);
+            });
+            
+            // Обновляем символы в текущей истории
+            this.currentStory.symbols = this.dice.map(die => die.currentSymbol.name);
+            
+            // Добавляем очки за бросок
+            this.storyScore += 10;
+            
+            // Воспроизводим звук, если включен
+            if (this.soundEnabled) {
+                this.playSound('roll');
+            }
+        },
+        
+        rollSingleDie(index) {
+            if (this.animationsEnabled) {
+                this.dice[index].isRolling = true;
+                setTimeout(() => {
+                    this.dice[index].isRolling = false;
+                }, 800);
+            }
+            
+            setTimeout(() => {
+                const randomIndex = Math.floor(Math.random() * 6);
+                this.dice[index].currentSymbol = this.dice[index].symbols[randomIndex];
+                
+                // Обновляем символы в текущей истории
+                this.currentStory.symbols = this.dice.map(die => die.currentSymbol.name);
+            }, this.animationsEnabled ? 400 : 0);
+        },
+        
+        generateStoryPrompt() {
+            if (!this.isAIActive || this.isAILoading) return;
+            
+            this.isAILoading = true;
+            this.aiSuggestion = 'ИИ думает над подсказкой...';
+            
+            // Используем Brain.js для генерации подсказки
+            setTimeout(() => {
+                const currentSymbols = this.dice.map(die => die.currentSymbol.name);
+                const prompt = this.generateAIPrompt(currentSymbols);
+                
+                this.aiSuggestion = prompt;
+                this.isAILoading = false;
+                
+                // Добавляем очки за использование AI
+                this.creativityScore += 5;
+                
+                this.showToast('AI сгенерировал подсказку!', 'fa-robot');
+            }, 1500);
+        },
+        
+        generateAIPrompt(symbols) {
+            // Простая логика генерации подсказок (можно заменить на настоящую нейронную сеть)
+            const prompts = [
+                `Попробуйте начать историю с символа "${symbols[0]}". Что если это будет ключом к разгадке тайны?`,
+                `Соедините "${symbols[1]}" и "${symbols[2]}" в неожиданном сюжетном повороте.`,
+                `Представьте, что "${symbols[3]}" - это магический артефакт, а "${symbols[4]}" - его хранитель.`,
+                `Создайте историю, где "${symbols[5]}" символизирует надежду, а "${symbols[6]}" - препятствие.`,
+                `Что если "${symbols[7]}" и "${symbols[8]}" связаны древним пророчеством?`,
+                `Начните с диалога персонажей о "${symbols[0]}", который неожиданно приводит к "${symbols[1]}".`,
+                `Используйте "${symbols[2]}" как метафору внутреннего конфликта главного героя.`,
+                `Представьте, что все символы - это подсказки в детективной истории.`
+            ];
+            
+            // Если нейронная сеть обучена, используем ее
+            if (this.neuralNetwork && this.trainingData.length > 10) {
+                try {
+                    // Простая имитация работы нейронной сети
+                    const input = symbols.join(' ').toLowerCase();
+                    const output = this.neuralNetwork.run(input);
+                    if (output && output.suggestion) {
+                        return output.suggestion;
+                    }
+                } catch (error) {
+                    console.log('Нейронная сеть еще не готова, используем базовые подсказки');
+                }
+            }
+            
+            return prompts[Math.floor(Math.random() * prompts.length)];
+        },
+        
+        initNeuralNetwork() {
+            // Инициализация нейронной сети Brain.js
+            this.neuralNetwork = new brain.recurrent.LSTM({
+                iterations: 100,
+                errorThresh: 0.011,
+                log: true,
+                logPeriod: 10,
+                learningRate: 0.3
+            });
+            
+            // Загрузка тренировочных данных
+            this.loadTrainingData();
+        },
+        
+        loadTrainingData() {
+            // Базовые тренировочные данные
+            this.trainingData = [
+                { input: "луна замок призрак", output: { suggestion: "В лунную ночь в старом замке появился призрак..." } },
+                { input: "ключ книга тайна", output: { suggestion: "Старинный ключ открыл книгу, содержащую древнюю тайну..." } },
+                { input: "дракон рыцарь меч", output: { suggestion: "Отважный рыцарь с мечом отправился сражаться с драконом..." } },
+                { input: "корабль океан шторм", output: { suggestion: "Корабль попал в сильный шторм посреди океана..." } },
+                { input: "детектив улика загадка", output: { suggestion: "Детектив нашел улику, которая могла раскрыть старую загадку..." } }
+            ];
+            
+            this.trainedStoriesCount = this.trainingData.length;
+        },
+        
+        trainNeuralNetwork() {
+            if (this.isTraining) return;
+            
+            this.isTraining = true;
+            this.trainingProgress = 0;
+            this.showTrainingModal = true;
+            
+            // Имитация обучения с прогрессом
+            const interval = setInterval(() => {
+                this.trainingProgress += 10;
+                if (this.trainingProgress >= 100) {
+                    clearInterval(interval);
+                    this.isTraining = false;
+                    
+                    // Обновляем нейронную сеть с тренировочными данными
+                    try {
+                        this.neuralNetwork.train(this.trainingData, {
+                            iterations: 200,
+                            errorThresh: 0.01,
+                            log: true,
+                            logPeriod: 20,
+                            callback: (stats) => {
+                                console.log('Обучение нейронной сети:', stats);
+                            }
+                        });
+                        
+                        this.showToast('Нейронная сеть успешно обучена!', 'fa-brain');
+                    } catch (error) {
+                        console.error('Ошибка обучения нейронной сети:', error);
+                        this.showToast('Ошибка обучения нейронной сети', 'fa-exclamation-triangle');
+                    }
+                }
+            }, 100);
+        },
+        
+        saveStory() {
+            if (!this.currentStory.text.trim()) {
+                this.showToast('Введите текст истории перед сохранением', 'fa-exclamation-circle');
+                return;
+            }
+            
+            // Создаем новую историю
+            const story = {
+                id: Date.now(),
+                title: this.currentStory.title || `История от ${new Date().toLocaleDateString()}`,
+                text: this.currentStory.text,
+                symbols: [...this.currentStory.symbols],
+                coherenceRating: this.currentStory.coherenceRating,
+                date: new Date().toISOString()
+            };
+            
+            // Добавляем в сохраненные истории
+            this.savedStories.unshift(story);
+            
+            // Ограничиваем количество сохраненных историй
+            if (this.savedStories.length > 20) {
+                this.savedStories = this.savedStories.slice(0, 20);
+            }
+            
+            // Сохраняем в localStorage
+            this.saveToLocalStorage();
+            
+            // Добавляем в тренировочные данные для нейронной сети
+            this.addToTrainingData(story);
+            
+            // Сбрасываем текущую историю
+            this.currentStory = {
+                id: null,
+                title: '',
+                text: '',
+                symbols: [],
+                coherenceRating: 3,
+                date: null
+            };
+            
+            // Обновляем очки
+            this.storyScore += 50;
+            this.creativityScore += Math.floor(story.text.length / 10);
+            
+            this.showToast('История сохранена успешно!', 'fa-check-circle');
+        },
+        
+        addToTrainingData(story) {
+            // Добавляем историю в тренировочные данные для нейронной сети
+            if (story.symbols.length >= 3 && story.text.length > 20) {
+                const input = story.symbols.slice(0, 3).join(' ').toLowerCase();
+                const output = { suggestion: story.text.substring(0, 100) + '...' };
+                
+                this.trainingData.push({ input, output });
+                this.trainedStoriesCount++;
+                
+                // Переобучаем нейронную сеть, если накопилось достаточно данных
+                if (this.trainingData.length >= 10 && this.trainingData.length % 5 === 0) {
+                    setTimeout(() => this.trainNeuralNetwork(), 3000);
+                }
+            }
+        },
+        
+        loadStory(id) {
+            const story = this.savedStories.find(s => s.id === id);
+            if (story) {
+                this.currentStory = { ...story };
+                this.showToast('История загружена', 'fa-history');
+            }
+        },
+        
+        clearStory() {
+            this.currentStory = {
+                id: null,
+                title: '',
+                text: '',
+                symbols: [],
+                coherenceRating: 3,
+                date: null
+            };
+            this.showToast('Текст истории очищен', 'fa-trash');
+        },
+        
+        clearAllData() {
+            if (confirm('Вы уверены, что хотите удалить все сохраненные истории и данные?')) {
+                this.savedStories = [];
+                this.trainingData = [];
+                this.trainedStoriesCount = 0;
+                this.storyScore = 0;
+                this.creativityScore = 0;
+                
+                localStorage.removeItem('storyCubesData');
+                this.showToast('Все данные удалены', 'fa-trash-alt');
+            }
+        },
+        
+        rateCoherence(rating) {
+            this.currentStory.coherenceRating = rating;
+        },
+        
+        updateStoryStats() {
+            // Обновляем статистику при вводе текста
+            // Можно добавить дополнительную логику анализа текста
+        },
+        
+        get wordCount() {
+            return this.currentStory.text.trim() ? this.currentStory.text.trim().split(/\s+/).length : 0;
+        },
+        
+        toggleTheme() {
+            this.theme = this.theme === 'dark' ? 'light' : 'dark';
+            this.applyTheme();
+            this.showToast(`Тема изменена на ${this.theme === 'dark' ? 'тёмную' : 'светлую'}`, 'fa-palette');
+        },
+        
+        changeTheme() {
+            this.applyTheme();
+        },
+        
+        toggleAIAssistant() {
+            this.isAIActive = !this.isAIActive;
+            this.showToast(`AI ассистент ${this.isAIActive ? 'включен' : 'выключен'}`, 'fa-robot');
+        },
+        
+        toggleSound() {
+            this.soundEnabled = !this.soundEnabled;
+            this.showToast(`Звуки ${this.soundEnabled ? 'включены' : 'выключены'}`, 'fa-volume-up');
+        },
+        
+        toggleAnimations() {
+            this.animationsEnabled = !this.animationsEnabled;
+            this.showToast(`Анимации ${this.animationsEnabled ? 'включены' : 'выключены'}`, 'fa-play-circle');
+        },
+        
+        playSound(type) {
+            // Простая имитация звуков через Web Audio API
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                if (type === 'roll') {
+                    oscillator.frequency.setValueAtTime(300, audioContext.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 0.5);
+                }
+                
+                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (error) {
+                console.log('Воспроизведение звука не поддерживается');
+            }
+        },
+        
+        showToast(message, icon = 'fa-info-circle') {
+            this.toastMessage = message;
+            this.toastIcon = icon;
+            this.showToast = true;
+            
+            setTimeout(() => {
+                this.showToast = false;
+            }, 3000);
+        },
+        
+        previewText(text, maxLength = 60) {
+            if (text.length <= maxLength) return text;
+            return text.substring(0, maxLength) + '...';
+        },
+        
+        formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('ru-RU', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+            });
+        },
+        
+        saveToLocalStorage() {
+            const data = {
+                savedStories: this.savedStories,
+                storyScore: this.storyScore,
+                creativityScore: this.creativityScore,
+                theme: this.theme,
+                soundEnabled: this.soundEnabled,
+                animationsEnabled: this.animationsEnabled,
+                isAIActive: this.isAIActive,
+                aiDifficulty: this.aiDifficulty
+            };
+            
+            localStorage.setItem('storyCubesData', JSON.stringify(data));
+        },
+        
+        loadSavedData() {
+            const savedData = localStorage.getItem('storyCubesData');
+            if (savedData) {
+                try {
+                    const data = JSON.parse(savedData);
+                    this.savedStories = data.savedStories || [];
+                    this.storyScore = data.storyScore || 0;
+                    this.creativityScore = data.creativityScore || 0;
+                    this.theme = data.theme || this.theme;
+                    this.soundEnabled = data.soundEnabled !== undefined ? data.soundEnabled : true;
+                    this.animationsEnabled = data.animationsEnabled !== undefined ? data.animationsEnabled : true;
+                    this.isAIActive = data.isAIActive !== undefined ? data.isAIActive : true;
+                    this.aiDifficulty = data.aiDifficulty || 5;
+                    
+                    this.applyTheme();
+                } catch (error) {
+                    console.error('Ошибка загрузки данных:', error);
+                }
+            }
+        }
+    }));
+});
+</script>
+</body>
+</html>
