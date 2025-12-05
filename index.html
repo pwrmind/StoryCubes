@@ -740,7 +740,7 @@
             }
             
             .board {
-                aspect-ratio: 4/3;
+                /* aspect-ratio: 4/3; */
             }
             
             .hud {
@@ -879,13 +879,6 @@
                     <button class="btn btn--primary" @click="rollAllDice">
                         <i class="fas fa-dice"></i> Бросить все кубики
                     </button>
-                    <button class="btn" @click="generateStoryPrompt" :disabled="isAILoading">
-                        <i class="fas fa-robot"></i> 
-                        <span x-text="isAILoading ? 'ИИ думает...' : 'AI Подсказка'"></span>
-                    </button>
-                    <button class="btn" @click="clearStory">
-                        <i class="fas fa-trash"></i> Очистить
-                    </button>
                 </div>
             </section>
 
@@ -941,6 +934,13 @@
                         <div class="switch__knob"></div>
                     </div>
                     <span>AI Подсказки: <span x-text="isAIActive ? 'Вкл' : 'Выкл'"></span></span>
+                    <button class="btn" @click="generateStoryPrompt" :disabled="isAILoading">
+                        <i class="fas fa-robot"></i> 
+                        <span x-text="isAILoading ? 'ИИ думает...' : 'AI Подсказка'"></span>
+                    </button>
+                    <button class="btn" @click="clearStory">
+                        <i class="fas fa-trash"></i> Очистить
+                    </button>
                 </div>
                 <div class="ai-panel__training" x-show="showTrainingPanel">
                     <p>Нейросеть обучается на ваших историях для лучших подсказок</p>
